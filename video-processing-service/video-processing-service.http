@@ -1,0 +1,6 @@
+@video_processing_service_HostAddress = http://localhost:5185
+
+GET {{video_processing_service_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
