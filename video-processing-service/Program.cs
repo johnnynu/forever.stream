@@ -1,22 +1,22 @@
+using video_processing_service;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSingleton<StorageService>();
+
+// Explicitly set the URL for the application
+builder.WebHost.UseUrls("http://*:5185");
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+
+// setup storage directories
+var storageService = app.Services.GetRequiredService<StorageService>();
+storageService.SetupDirectories();
 
 app.Run();

@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "3Nj4NIMBzOuoTVcsBq9UfMyn+5Wqxu6aH9iuluH/jyU=",
+  "Source": "video-processing-service",
+  "BasePath": "_content/video-processing-service",
+  "Mode": "Default",
+  "ManifestType": "Publish",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}

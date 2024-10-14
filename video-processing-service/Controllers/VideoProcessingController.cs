@@ -2,8 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using FFMpegCore;
-using FFMpegCore.Enums;
+using System.Text.Json;
 
 namespace video_processing_service.Controllers
 {
@@ -12,58 +11,102 @@ namespace video_processing_service.Controllers
     public class VideoProcessingController : ControllerBase
     {
         private readonly ILogger<VideoProcessingController> _logger;
+        private readonly StorageService _storageService;
 
-        public VideoProcessingController(ILogger<VideoProcessingController> logger)
+        public VideoProcessingController(ILogger<VideoProcessingController> logger, StorageService storageService)
         {
             _logger = logger;
+            _storageService = storageService;
         }
 
         [HttpPost("process-video")]
-        public async Task<IActionResult> ProcessVideo([FromBody] VideoProcessingRequest request)
+        public async Task<IActionResult> ProcessVideo([FromBody] PubSubMessage message)
         {
-            // Check if the input file path is defined
-            if (string.IsNullOrEmpty(request.InputFilePath) || string.IsNullOrEmpty(request.OutputFilePath))
+            if (message?.Message?.Data == null)
             {
-                return BadRequest("Missing file path");
+                return BadRequest("Invalid message format");
             }
+
+            string decodedData = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(message.Message.Data));
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            };
+            var data = JsonSerializer.Deserialize<PubSubData>(decodedData, options);
+
+            Console.WriteLine($"Deserialized data - Name: {data?.Name}, Bucket: {data?.Bucket}, Size: {data?.Size}");
+
+            if (string.IsNullOrEmpty(data?.Name))
+            {
+                return BadRequest("Missing filename in message data");
+            }
+
+            string inputFileName = data.Name;
+            string outputFileName = $"processed-{inputFileName}";
 
             try
             {
-                // Create the FFmpeg command
-                bool success = await FFMpegArguments
-                    .FromFileInput(request.InputFilePath)
-                    .OutputToFile(request.OutputFilePath, true, options => options
-                        .WithVideoCodec(VideoCodec.LibX264)
-                        .WithConstantRateFactor(23)
-                        .WithAudioCodec(AudioCodec.Aac)
-                        .WithVariableBitrate(4)
-                        .WithVideoFilters(filterOptions => filterOptions
-                            .Scale(VideoSize.FullHd))
-                        .WithFastStart())
-                    .ProcessAsynchronously();
+                // Process the video (download, convert, upload)
+                await _storageService.DownloadRawVideoAsync(inputFileName);
+                Console.WriteLine($"Downloaded raw video: {inputFileName}");
+                await _storageService.ConvertVideoAsync(inputFileName, outputFileName);
+                Console.WriteLine($"Converted video: {inputFileName} to {outputFileName}");
+                await _storageService.UploadProcessedVideoAsync(outputFileName);
+                Console.WriteLine($"Uploaded processed video: {outputFileName}");
 
-                if (success)
-                {
-                    _logger.LogInformation("Processing finished successfully");
-                    return Ok("Video processing completed successfully");
-                }
-                else
-                {
-                    _logger.LogError("Processing failed");
-                    return StatusCode(500, "Video processing failed");
-                }
+                // Clean up local files
+                _storageService.DeleteRawVideo(inputFileName);
+                _storageService.DeleteProcessedVideo(outputFileName);
+                Console.WriteLine("Cleaned up local files");
+
+                return Ok("Processing finished successfully");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"An error occurred: {ex.Message}");
-                return StatusCode(500, $"An error occurred: {ex.Message}");
+
+                _logger.LogError(ex, "Error processing video");
+
+                // Clean up local files in case of error
+                _storageService.DeleteRawVideo(inputFileName);
+                _storageService.DeleteProcessedVideo(outputFileName);
+
+                return StatusCode(500, "An error occured while processing the video");
             }
         }
     }
 
-    public class VideoProcessingRequest
+    public class PubSubMessage
     {
-        public required string InputFilePath { get; set; }
-        public required string OutputFilePath { get; set; }
+        public PubSubMessageData? Message { get; set; }
+        public string? Subscription { get; set; }
+    }
+
+    public class PubSubMessageData
+    {
+        public Dictionary<string, string>? Attributes { get; set; }
+        public string? Data { get; set; }
+        public string? MessageId { get; set; }
+        public string? PublishTime { get; set; }
+    }
+
+    public class PubSubData
+    {
+        public required string Kind { get; set; }
+        public required string Id { get; set; }
+        public required string SelfLink { get; set; }
+        public required string Name { get; set; }
+        public required string Bucket { get; set; }
+        public required string Generation { get; set; }
+        public required string Metageneration { get; set; }
+        public required string ContentType { get; set; }
+        public required string TimeCreated { get; set; }
+        public required string Updated { get; set; }
+        public required string StorageClass { get; set; }
+        public required string TimeStorageClassUpdated { get; set; }
+        public required string Size { get; set; }
+        public required string Md5Hash { get; set; }
+        public required string MediaLink { get; set; }
+        public required string Crc32c { get; set; }
+        public required string Etag { get; set; }
     }
 }
