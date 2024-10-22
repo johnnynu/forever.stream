@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using FFMpegCore;
 using FFMpegCore.Enums;
 
-namespace video_processing_service
+namespace video_processing_service.Services
 {
     public class StorageService
     {

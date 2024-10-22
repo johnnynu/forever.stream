@@ -1,8 +1,7 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using video_processing_service.Models;
+using video_processing_service.Services;
 
 namespace video_processing_service.Controllers
 {
@@ -12,11 +11,13 @@ namespace video_processing_service.Controllers
     {
         private readonly ILogger<VideoProcessingController> _logger;
         private readonly StorageService _storageService;
+        private readonly FirestoreService _firestoreService;
 
-        public VideoProcessingController(ILogger<VideoProcessingController> logger, StorageService storageService)
+        public VideoProcessingController(ILogger<VideoProcessingController> logger, StorageService storageService, FirestoreService firestoreService)
         {
             _logger = logger;
             _storageService = storageService;
+            _firestoreService = firestoreService;
         }
 
         [HttpPost("process-video")]
@@ -34,8 +35,6 @@ namespace video_processing_service.Controllers
             };
             var data = JsonSerializer.Deserialize<PubSubData>(decodedData, options);
 
-            Console.WriteLine($"Deserialized data - Name: {data?.Name}, Bucket: {data?.Bucket}, Size: {data?.Size}");
-
             if (string.IsNullOrEmpty(data?.Name))
             {
                 return BadRequest("Missing filename in message data");
@@ -43,9 +42,24 @@ namespace video_processing_service.Controllers
 
             string inputFileName = data.Name;
             string outputFileName = $"processed-{inputFileName}";
+            string videoId = Path.GetFileNameWithoutExtension(inputFileName);
 
             try
             {
+                // Check if video is already being processed or has been processed
+                if (!await _firestoreService.IsVideoNew(videoId))
+                {
+                    return BadRequest("Video is already processing or has been processed");
+                }
+
+                // Set initial processing status
+                await _firestoreService.SetVideo(videoId, new Video
+                {
+                    Id = videoId,
+                    Uid = videoId.Split('-')[0],
+                    Status = "processing"
+                });
+
                 // Process the video (download, convert, upload)
                 await _storageService.DownloadRawVideoAsync(inputFileName);
                 Console.WriteLine($"Downloaded raw video: {inputFileName}");
@@ -53,6 +67,15 @@ namespace video_processing_service.Controllers
                 Console.WriteLine($"Converted video: {inputFileName} to {outputFileName}");
                 await _storageService.UploadProcessedVideoAsync(outputFileName);
                 Console.WriteLine($"Uploaded processed video: {outputFileName}");
+
+                // Update status to processed
+                Console.WriteLine("About to update video status");
+                await _firestoreService.UpdateVideo(videoId, new Dictionary<string, object>
+                {
+                    {"Status", "processed"},
+                    {"Filename", outputFileName},
+                });
+                Console.WriteLine("Successfully updated video status");
 
                 // Clean up local files
                 _storageService.DeleteRawVideo(inputFileName);

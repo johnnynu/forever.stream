@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("video-processing-service")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0d61499b9602d76fc73f2478fcd4c8e35a52314c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+73d92d4b9c677c0415ff86db07e9a9b20d9f2254")]
 [assembly: System.Reflection.AssemblyProductAttribute("video-processing-service")]
 [assembly: System.Reflection.AssemblyTitleAttribute("video-processing-service")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

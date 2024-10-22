@@ -16,6 +16,7 @@ const Upload = () => {
   ) => {
     // Get the first file from the input
     const file = event.target.files?.item(0);
+    console.log(file);
 
     if (file) {
       // Set uploading state to true when starting the upload
