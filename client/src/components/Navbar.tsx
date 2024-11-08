@@ -19,26 +19,30 @@ const Navbar: React.FC = () => {
   }, []);
 
   return (
-    <nav className="w-full bg-background border-b">
-      <div className="container mx-auto px-4 py-2 flex items-center justify-between">
+    <div className="w-full fixed top-0 z-50 bg-background border-b">
+      <div className="flex h-16 items-center justify-between w-full px-4">
         {/* Left section */}
-        <div className="flex items-center space-x-2 lg:w-1/4">
+        <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon">
             <Menu className="h-6 w-6" />
           </Button>
           <span className="text-xl font-semibold hidden sm:inline">
-            Forever.stream
+            ForeverStream
           </span>
         </div>
 
-        {/* Center section */}
-        <div className="flex justify-center lg:w-1/2">
-          <div className="relative w-full max-w-md">
-            <Input type="text" placeholder="Search" className="w-full pr-10" />
+        {/* Center section - Search */}
+        <div className="flex max-w-[720px] w-full mx-4">
+          <div className="flex w-full">
+            <Input
+              type="text"
+              placeholder="Search"
+              className="rounded-r-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
             <Button
-              variant="ghost"
+              variant="secondary"
               size="icon"
-              className="absolute right-0 top-0 h-full"
+              className="rounded-l-none border border-l-0 h-9"
             >
               <Search className="h-4 w-4" />
             </Button>
@@ -46,12 +50,12 @@ const Navbar: React.FC = () => {
         </div>
 
         {/* Right section */}
-        <div className="flex items-center space-x-2 lg:w-1/4 justify-end">
+        <div className="flex items-center gap-2">
           {user && <Upload />}
           <SignInButton user={user} />
         </div>
       </div>
-    </nav>
+    </div>
   );
 };
 
