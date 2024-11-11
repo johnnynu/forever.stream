@@ -18,6 +18,8 @@ interface Video {
 export interface VideoMetadata {
   title: string;
   description: string;
+  width: number;
+  height: number;
 }
 
 export const uploadVideo = async (file: File, metadata: VideoMetadata) => {
@@ -28,10 +30,12 @@ export const uploadVideo = async (file: File, metadata: VideoMetadata) => {
       metadata: {
         title: metadata.title,
         description: metadata.description,
+        width: metadata.width,
+        height: metadata.height,
       },
     });
 
-    const { url, fileName } = response.data;
+    const { url, fileName, documentId } = response.data;
 
     // upload file via signed url
     await fetch(url, {
@@ -42,7 +46,7 @@ export const uploadVideo = async (file: File, metadata: VideoMetadata) => {
       },
     });
 
-    return fileName;
+    return { fileName, documentId };
   } catch (error) {
     console.error("Error in upload process: ", error);
     throw error;

@@ -13,12 +13,17 @@ interface VideoPlayerProps {
   manifestUrl: string;
 }
 
+interface QualityOption {
+  bitrate: number;
+  height: number;
+  qualityIndex: number;
+}
+
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ manifestUrl }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<dashjs.MediaPlayerClass>();
-  const [currentQuality, setCurrentQuality] = useState<
-    "auto" | "720p" | "360p"
-  >("auto");
+  const [currentQuality, setCurrentQuality] = useState<string>("auto");
+  const [qualities, setQualities] = useState<QualityOption[]>([]);
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -44,6 +49,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ manifestUrl }) => {
 
     player.initialize(videoRef.current, manifestUrl, true);
 
+    // get available qualities once stream is init
+    player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+      const videoQualities = player.getBitrateInfoListFor("video");
+      if (videoQualities) {
+        const formattedQualities = videoQualities
+          .map((quality, index) => ({
+            bitrate: quality.bitrate,
+            height: quality.height,
+            qualityIndex: index,
+          }))
+          .sort((a, b) => b.height - a.height); // sort by height, highest first
+
+        setQualities(formattedQualities);
+        console.log("Available qualities: ", formattedQualities);
+      }
+    });
+
     return () => {
       if (playerRef.current) {
         playerRef.current.destroy();
@@ -51,6 +73,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ manifestUrl }) => {
       }
     };
   }, [manifestUrl]);
+
+  const handleQualityChange = (quality: string, qualityIndex?: number) => {
+    if (!playerRef.current) return;
+
+    if (quality === "auto") {
+      playerRef.current.updateSettings({
+        streaming: { abr: { autoSwitchBitrate: { video: true } } },
+      });
+    } else if (qualityIndex !== undefined) {
+      playerRef.current.updateSettings({
+        streaming: { abr: { autoSwitchBitrate: { video: false } } },
+      });
+    }
+
+    setCurrentQuality(quality);
+  };
 
   return (
     <div className="relative w-full aspect-video bg-black group">
@@ -79,41 +117,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ manifestUrl }) => {
           >
             <DropdownMenuItem
               className={currentQuality === "auto" ? "text-blue-400" : ""}
-              onClick={() => {
-                playerRef.current?.updateSettings({
-                  streaming: { abr: { autoSwitchBitrate: { video: true } } },
-                });
-                setCurrentQuality("auto");
-              }}
+              onClick={() => handleQualityChange("auto")}
             >
               Auto
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className={currentQuality === "720p" ? "text-blue-400" : ""}
-              onClick={() => {
-                if (!playerRef.current) return;
-                playerRef.current.updateSettings({
-                  streaming: { abr: { autoSwitchBitrate: { video: false } } },
-                });
-                playerRef.current.setQualityFor("video", 1);
-                setCurrentQuality("720p");
-              }}
-            >
-              720p
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className={currentQuality === "360p" ? "text-blue-400" : ""}
-              onClick={() => {
-                if (!playerRef.current) return;
-                playerRef.current.updateSettings({
-                  streaming: { abr: { autoSwitchBitrate: { video: false } } },
-                });
-                playerRef.current.setQualityFor("video", 0);
-                setCurrentQuality("360p");
-              }}
-            >
-              360p
-            </DropdownMenuItem>
+            {qualities.map((quality) => (
+              <DropdownMenuItem
+                key={quality.height}
+                className={
+                  currentQuality === `${quality.height}p` ? "text-blue-400" : ""
+                }
+                onClick={() =>
+                  handleQualityChange(
+                    `${quality.height}p`,
+                    quality.qualityIndex
+                  )
+                }
+              >
+                {quality.height}p
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

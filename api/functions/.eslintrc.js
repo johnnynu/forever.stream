@@ -32,6 +32,7 @@ module.exports = {
     "object-curly-spacing": "off",
     "@typescript-eslint/no-non-null-assertion": "off",
     "@typescript-eslint/no-explicit-any": "off",
-
+    "linebreak-style": "off",
+    "require-jsdoc": "off",
   },
 };

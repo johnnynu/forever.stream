@@ -13,28 +13,6 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import VideoPlayer from "./VideoPlayer";
 
-interface Video {
-  Id?: string;
-  Uid?: string;
-  Filename?: string;
-  Status?: "processing" | "processed";
-  Title?: string;
-  Description?: string;
-  UploadedAt?: string;
-  ProcessedAt?: string;
-}
-interface Comment {
-  id: string;
-  user: {
-    name: string;
-    avatar: string;
-  };
-  text: string;
-  likes: number;
-  timestamp: Date;
-  replies?: number;
-}
-
 export default function Watch() {
   const [searchParams] = useSearchParams();
   const videoId = searchParams.get("v")?.split(".")[0] || ""; // get video id without extension;
@@ -134,7 +112,7 @@ export default function Watch() {
 
           {/* Comments list */}
           <div className="mt-6 space-y-4">
-            {/* Individual comments would be mapped here */}
+            {/* Individual comments mapped here */}
           </div>
         </div>
       </div>

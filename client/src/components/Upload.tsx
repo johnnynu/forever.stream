@@ -46,12 +46,43 @@ const Upload = () => {
     }
   };
 
+  const getVideoResolution = (
+    file: File
+  ): Promise<{ width: number; height: number }> => {
+    return new Promise((res, reject) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        res({
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+      };
+
+      video.onerror = () => {
+        reject(new Error("Failed to load video metadata"));
+      };
+
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleMetadataSubmit = async () => {
     if (!selectedFile) return;
 
     setIsUploading(true);
     try {
-      await uploadVideo(selectedFile, metadata);
+      const { width, height } = await getVideoResolution(selectedFile);
+      console.log("Video dimensions:", { width, height });
+
+      await uploadVideo(selectedFile, {
+        title: metadata.title,
+        description: metadata.description,
+        width,
+        height,
+      });
       alert("Video uploaded successfully!");
     } catch (error) {
       alert(`Failed to upload video: ${error}`);

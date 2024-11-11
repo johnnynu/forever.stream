@@ -4,14 +4,13 @@ import { Firestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { Storage } from "@google-cloud/storage";
 import { onCall } from "firebase-functions/v2/https";
-import { TranscoderServiceClient } from "@google-cloud/video-transcoder";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
+import { createTranscodingJob } from "./transcoding";
 
 initializeApp();
 
 const firestore = new Firestore();
 const storage = new Storage();
-const transcoderServiceClient = new TranscoderServiceClient();
 
 const rawVideoBucketName = "foreverstream-raw-videos";
 const processedVideoBucketName = "foreverstream-processed-videos";
@@ -24,6 +23,8 @@ interface UploadRequest {
   metadata: {
     title: string;
     description: string;
+    width: number;
+    height: number;
   };
 }
 
@@ -66,6 +67,8 @@ export const generateUploadUrl = onCall(
       status: "uploaded",
       title: data.metadata.title,
       description: data.metadata.description,
+      width: data.metadata.width,
+      height: data.metadata.height,
       UploadedAt: new Date().toISOString(),
     };
 
@@ -92,7 +95,7 @@ export const getVideos = onCall({ maxInstances: 1 }, async () => {
   return snapshot.docs.map((doc) => doc.data());
 });
 
-export const createTranscodingJob = onObjectFinalized(
+export const createTranscodingJobFunction = onObjectFinalized(
   {
     bucket: rawVideoBucketName,
     region: location,
@@ -104,82 +107,36 @@ export const createTranscodingJob = onObjectFinalized(
       const inputUri = `gs://${object.data.bucket}/${object.data.name}`;
       const outputUri = `gs://${processedVideoBucketName}/${videoId}/`;
 
-      const request = {
-        parent: transcoderServiceClient.locationPath(
-          process.env.GOOGLE_CLOUD_PROJECT_ID! ||
-            functions.config().google.project_id,
-          location
-        ),
-        job: {
-          inputUri: inputUri,
-          outputUri: outputUri,
-          config: {
-            elementaryStreams: [
-              {
-                key: "video-sd",
-                videoStream: {
-                  h264: {
-                    heightPixels: 360,
-                    widthPixels: 640,
-                    bitrateBps: 550000,
-                    frameRate: 60,
-                  },
-                },
-              },
-              {
-                key: "video-hd",
-                videoStream: {
-                  h264: {
-                    heightPixels: 720,
-                    widthPixels: 1280,
-                    bitrateBps: 2500000,
-                    frameRate: 60,
-                  },
-                },
-              },
-              {
-                key: "audio-stream",
-                audioStream: {
-                  codec: "aac",
-                  bitrateBps: 64000,
-                },
-              },
-            ],
-            muxStreams: [
-              {
-                key: "sd",
-                container: "fmp4",
-                elementaryStreams: ["video-sd"],
-              },
-              {
-                key: "hd",
-                container: "fmp4",
-                elementaryStreams: ["video-hd"],
-              },
-              {
-                key: "audio",
-                container: "fmp4",
-                elementaryStreams: ["audio-stream"],
-              },
-            ],
-            manifests: [
-              {
-                fileName: "manifest.mpd",
-                type: "DASH",
-                muxStreams: ["sd", "hd", "audio"],
-              },
-            ],
-          },
-        },
-      } as any;
+      const videoDoc = await firestore
+        .collection(videoCollectionId)
+        .doc(videoId)
+        .get();
+      const videoData = videoDoc.data();
 
-      const response = await transcoderServiceClient.createJob(request);
+      if (!videoData?.width || !videoData?.height) {
+        throw new Error("Video dimensions not found in metadata");
+      }
+
+      const width = parseInt(videoData.width);
+      const height = parseInt(videoData.height);
+
+      await createTranscodingJob(
+        process.env.GOOGLE_CLOUD_PROJECT_ID!,
+        location,
+        inputUri,
+        outputUri,
+        width,
+        height
+      );
 
       // Update Firestore
-      await firestore.collection(videoCollectionId).doc(videoId).update({
-        status: "processing",
-        transcodingJobId: response[0].name,
-      });
+      await firestore
+        .collection(videoCollectionId)
+        .doc(videoId)
+        .update({
+          status: "processing",
+          inputResolution: `${width}x${height}`,
+        });
     } catch (error: any) {
       console.error("Error creating transcoding job:", error);
       await firestore.collection(videoCollectionId).doc(videoId).update({
@@ -206,7 +163,7 @@ export const handleTranscodedVideo = onObjectFinalized(
     try {
       // Update the video document in Firestore
       await firestore
-        .collection("videos")
+        .collection(videoCollectionId)
         .doc(videoId)
         .update({
           status: "processed",
